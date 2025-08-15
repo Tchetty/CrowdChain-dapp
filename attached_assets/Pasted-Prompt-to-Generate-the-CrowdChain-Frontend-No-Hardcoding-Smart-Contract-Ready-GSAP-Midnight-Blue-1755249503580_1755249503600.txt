@@ -1,0 +1,226 @@
+Prompt to Generate the CrowdChain Frontend (No Hardcoding, Smart-Contract Ready, GSAP, Midnight Blue)
+
+You are a senior Frontend Engineer.
+Build a production-ready frontend for CrowdChain, a crowdfunding dApp. Do NOT write any Solidity. The UI must be smart-contract ready and not hard-coded (addresses/ABI/chain come from env + local files). Implement the product features described below (sourced from the CrowdChain PRD) and deliver a clean, animated experience using GSAP and the midnight blue color #050170 as the primary brand color. 
+
+1) Tech Stack & Conventions
+
+Next.js 14 (App Router) + TypeScript
+
+Ethers v6 for on-chain reads/writes (no wagmi; keep it dependency-light)
+
+Wallets: MetaMask via window.ethereum; structure code so WalletConnect/RainbowKit can be added later
+
+Styling: Tailwind CSS + CSS variables; primary color = #050170 (buttons, links, accents); accessible contrast
+
+UI kit: shadcn/ui (Buttons, Cards, Dialog/Sheet, Toast/Snackbar)
+
+Animations: GSAP for smooth scrolling, entrance reveals, parallax hero, and event-driven animations (triggered by contract events)
+
+Data fetching/state: TanStack Query for caching read calls; lightweight Zustand store for session/UI state
+
+Formatting: ESlint + Prettier; absolute imports (@/components, @/lib); strict TS
+
+A11y & Perf: Keyboard focus states, aria labels, lazy image loading, dynamic imports where sensible
+
+2) Zero Hardcoding — Runtime Configuration
+
+Never hard-code contract addresses, chain IDs, RPC URLs, or IPFS gateways.
+
+Load runtime config from .env and a small config helper:
+
+NEXT_PUBLIC_RPC_URL (Base Sepolia RPC)
+
+NEXT_PUBLIC_CHAIN_ID (e.g., 84532 for Base Sepolia)
+
+NEXT_PUBLIC_CONTRACT_ADDRESS
+
+Load ABI at runtime from public/abi/CrowdChain.json (do not inline it).
+
+Provide a settings drawer in the UI where a developer can override address/ABI URL at runtime (stored in localStorage) for hackathon flexibility.
+
+3) File/Folder Structure
+/app
+  /(marketing)/landing/page.tsx
+  /campaigns/page.tsx              // list + filters
+  /campaigns/[id]/page.tsx         // details, pledge, milestones, voting
+  /create-campaign/page.tsx        // working form -> on-chain tx
+  /dao/page.tsx                    // proposals/voting (UI-ready, contract-agnostic)
+  /dashboard/startup/page.tsx
+  /dashboard/investor/page.tsx
+  /mentorship/page.tsx
+  /blog/page.tsx
+/components
+  CampaignCard.tsx
+  CampaignForm.tsx
+  ConnectButton.tsx
+  ProgressBar.tsx
+  VoteDialog.tsx
+  MilestoneList.tsx
+  Stat.tsx
+  ParallaxHero.tsx
+  SettingsDrawer.tsx
+/lib
+  ethersClient.ts                  // provider, signer, contract factory (reads/writes)
+  config.ts                        // env + localStorage overrides
+  format.ts                        // ETH/wei helpers, date utils
+  gsapAnimations.ts                // central GSAP timelines & triggers
+  queries.ts                       // TanStack Query keys & functions
+/styles/globals.css                // Tailwind base + CSS variables
+/public/abi/CrowdChain.json        // ABI placeholder (not hard-coded)
+
+4) Pages & Features (from PRD, frontend only)
+
+Landing Page (marketing): parallax hero with GSAP, Connect Wallet, featured campaigns (dynamic from contract reads), CTAs: “Create Campaign”, “Explore Campaigns”. 
+
+Create Campaign (WORKING): Full form (title, description, goal (ETH), deadline picker, milestones: title+amount array, metadata URL). On submit: calls createCampaign() via Ethers signer. Shows tx pending/success toasts and GSAP success animation.
+Campaigns (List + Filters): Card grid with search/filter (status, industry, goal range). Each card shows title, excerpt, progress bar, raised/goal, days left, and a GSAP hover/entrance effect.
+Campaign Detail:
+
+Header with title, creator, share buttons
+
+Live stats (raised, goal, backers, time left) with animated counters
+
+Milestones list (status badges: pending, voting, released)
+
+Pledge widget (input ETH → pledge() tx)
+
+Vote dialog for milestone approvals (weighted by contribution) – UI only; calls voteOnMilestone() if present
+
+Refund button appears if goal not met after deadline → calls claimRefund()
+
+Event listeners: subscribe to CampaignCreated, Pledged, MilestoneRequested, MilestoneReleased, RefundClaimed for live updates + GSAP highlights
+DAO Page: Proposal list & vote UI (contract-agnostic shell): table/cards with actions; wire to contract once available.
+Dashboards:
+
+Startup: My campaigns, status, raised, next milestones, quick link to edit metadata (front-end only); upload links (stored off-chain).
+
+Investor: My pledges, votes, activity timeline, watchlist.
+Mentorship / Blog: Read-only placeholders with layout, cards, and markdown rendering (point to dummy JSON/MD files; no CMS).
+(All line up with MVP scope in PRD.) 
+
+5) Theming & Styles
+
+Define CSS vars in globals.css:
+
+--color-primary: #050170; (apply to buttons, links, focus rings, progress bars)
+
+Complementary neutrals (gray-900…gray-100) via Tailwind
+
+Create a ThemeProvider wrapper; ensure dark-mode ready (auto prefers-color-scheme)
+
+Buttons: large rounded (2xl), soft shadows, subtle hover scale with GSAP
+
+Progress bars: animated width transitions on pledge updates
+
+6) GSAP Animations (centralized in /lib/gsapAnimations.ts)
+
+ParallaxHero: y-parallax on scroll for background shapes; fade-up headlines
+
+Staggered Cards: Campaign cards slide/fade in on list mount
+
+Progress on Pledge: On Pledged event, tween progress bar width and pulse the raised amount
+
+Milestone Release: Flash/highlight milestone row; confetti burst (GSAP particle snippet)
+
+Smooth Scroll: Implement smooth anchor scrolling across pages
+
+7) Ethers Integration (no hardcoding)
+
+ethersClient.ts:
+
+getProvider() uses NEXT_PUBLIC_RPC_URL
+
+getSigner() requests accounts from window.ethereum
+
+getContract(readOnly?: boolean) loads ABI from /abi/CrowdChain.json at runtime and binds to NEXT_PUBLIC_CONTRACT_ADDRESS
+
+All read calls (e.g., getCampaigns, getCampaignById, getMilestones, getTotals) wrapped in TanStack Query with sensible stale times and refetch on focus
+
+All write calls (createCampaign, pledge, requestMilestone, vote, claimRefund) return tx object; UI shows pending/success/error toasts and disables buttons while pending
+
+8) Live Event Subscriptions
+
+If NEXT_PUBLIC_CONTRACT_ADDRESS and ABI are present, create a single event subscription service:
+
+subscribeToEvents(handlerMap) sets up contract.on('Event', ...)
+
+On CampaignCreated → append new card with GSAP entrance
+
+On Pledged → invalidate relevant queries + animate progress
+
+On MilestoneReleased / RefundClaimed → show banner toast + highlight affected milestone/card
+
+Auto-clean listeners on route change/unmount
+
+9) Create Campaign — UX Details (WORKING)
+
+Multi-step form with validation (zod + react-hook-form):
+
+Basics (title, description, image URL)
+
+Funding (goal ETH, deadline date/time)
+
+Milestones: dynamic rows (title + amount ETH), add/remove; sum of milestone amounts must equal goal — validate before enabling submit
+
+Metadata URL (IPFS/Arweave) field
+
+On submit:
+
+Convert ETH to wei (ethers.parseEther)
+
+Build arrays for milestone titles/amounts
+
+await contract.createCampaign(...) with signer
+
+Await receipt, route to /campaigns/[id], fire GSAP success timeline
+
+10) Settings Drawer (Dev-Friendly)
+
+Slide-over drawer with inputs:
+
+RPC URL, Chain ID, Contract Address, ABI URL override
+
+Persist to localStorage, merged with .env at runtime
+
+Show a read-only diagnostic (connected chain, current account, contract version if available)
+
+11) Testing & DX
+
+Provide minimal unit tests for format utils and form validation
+
+Mock contract reads with a small DummyReadProvider if no env set, so pages still render for demos (but only for reads; writes disabled)
+
+Add README.md with setup steps below
+
+12) Deliverables
+
+Full Next.js app with the file structure above
+
+Tailwind configured; shadcn/ui installed with a basic theme using #050170
+
+All components/pages implemented
+
+public/abi/CrowdChain.json placeholder and instructions on where to drop the real ABI
+
+No Solidity code generated
+
+No hardcoded addresses or chain IDs anywhere
+
+13) Run & Wire-Up Instructions (generate in README)
+
+cp .env.example .env.local and fill:
+
+NEXT_PUBLIC_RPC_URL=https://sepolia.base.org
+
+NEXT_PUBLIC_CHAIN_ID=84532
+
+NEXT_PUBLIC_CONTRACT_ADDRESS=0x... (after deploy)
+
+Put ABI at public/abi/CrowdChain.json
+
+npm install && npm run dev
+
+Connect MetaMask; ensure network = Base Sepolia
+
+Create a campaign; see live events animate on list/detail
